@@ -1,24 +1,10 @@
 # _*_ coding: utf-8 _*_
-from ast import Global
-from glob import glob
-from http.client import NO_CONTENT
-import locale, functools, threading, time
-from sys import platlibdir
-from tkinter.messagebox import NO
-#import urllib.parse
-import urllib.request
-from xmlrpc.client import Boolean
-#from http.cookies import SimpleCookie
-#from pathlib import Path
-
+import locale, csv
+from io import StringIO
 from PyQt5 import QtCore
-from PyQt5.QtCore import QUrl#, QTimer
-#from PyQt5.QtGui import QIcon
-#from PyQt5.QtNetwork import QNetworkProxy
+from PyQt5.QtCore import QUrl
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import QApplication
-#from requests.cookies import RequestsCookieJar
-
 
 QtCore.qInstallMessageHandler(lambda *args: None)
 
@@ -73,19 +59,19 @@ class MobileBrowser(QWebEngineView):
         except Exception as e:
             print(e)
 
-class ResultCollector():
+class Resultcoll():
     def Clear(self):
         self.url = ''
         self.result = ''
         self.success = False
 
-    def Getter(self, success: Boolean, url: str, plainText: str):
-        self.succcess = success
+    def Getter(self, success, url: str, plainText: str):
+        self.success = success
         self.url = url
         self.result = plainText
 
 
-def fetch_data(url: str, collector: ResultCollector):
+def fetch_data(url: str, coll: Resultcoll):
     starting_up = QApplication.startingUp()
 
     if starting_up:
@@ -94,13 +80,38 @@ def fetch_data(url: str, collector: ResultCollector):
         locale.setlocale(locale.LC_TIME, 'C')
 
     the_browser = MobileBrowser()
-    the_browser.load(QUrl(url), collector.Getter)
+    the_browser.load(QUrl(url), coll.Getter)
     APP.exec()
 
+def anslyser(plainTex: str):
+    header = '股票代码,股票简称,相关资料,申购代码,发行总数(万股),网上发行(万股),顶格申购需配市值(万元),申购上限(万股),发行价格,最新价,首日收盘价,申购日期 ,中签号公布日,中签缴款日期,上市日期,发行市盈率,行业市盈率,中签率(%),询价累计报价,倍数,配售对象,报价家数,连续一字板数量,涨幅%,每中一签获利(元),招股说明书/意向书'
+    
+    ifs = StringIO()
+    csv_writer = csv.writer(ifs)
+    csv_writer.writerow(header.split(','))
+    
+    
+    rows = plainTex.split("\n")
+    for row in rows:
+        if -1 == row.find('详细'):
+            continue
+        elif 0 < row.find('下一页'):
+            break
+        csv_writer.writerow(row.split("\t"))
+    
+    csv_reader = csv.DictReader(ifs.getvalue().split('\n'))
+    for dict_row in csv_reader:
+       print(dict_row['股票代码'])
+
+    ifs.close()
+
+
 if __name__ == '__main__':
-    collector = ResultCollector()
-    url_list = {'https://data.eastmoney.com/xg/xg/default.html', 'https://data.eastmoney.com/kzz/default.html'}
+    coll = Resultcoll()
+    url_list = {'https://data.eastmoney.com/xg/xg/default.html'}#, 'https://data.eastmoney.com/kzz/default.html'}
     for url in url_list:
-        collector.Clear()
-        fetch_data(url, collector)
-        print(collector.result)
+        coll.Clear()
+        fetch_data(url, coll)
+        if coll.success is False:
+            continue
+        anslyser(coll.result)
