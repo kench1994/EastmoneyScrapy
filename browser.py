@@ -13,8 +13,8 @@ mysql_config = {'host':'172.21.82.234',
           'port':3306,
           'user':'root',
           'passwd':'kench',
-          'charset':'utf8mb4'#,
-          #'local_infile':1
+          'charset':'utf8mb4',
+          'database':'Finance'
           }
 
 def conn_to_mysql():
@@ -25,7 +25,7 @@ def conn_to_mysql():
     cur = conn.cursor()
     cur.execute("set names utf8;")
     cur.execute("SET character_set_connection=utf8;")
-    return cur          
+    return cur, conn          
 
 class MobileBrowser(QWebEngineView):
     def __init__(self):
@@ -105,9 +105,14 @@ def fmtDouble(val) -> float:
         return 0.0
     return float(val)
 
+def fmtWithQuote(val: str):
+    if val == "NULL":
+        return val
+    return '"' + val + '"'
+
 def fmtDate(val: str, based_year = '') -> str:
     if '-' == val:
-        return ''
+        return 'NULL'
     tmp = val
     nPos = val.find(' ')
     if -1 != nPos:
@@ -150,8 +155,8 @@ def anslyser(plainTex: str):
             break
         csv_writer.writerow(row.split("\t"))
 
-    #cur = conn_to_mysql()
-    #cur.
+    cursor, conn = conn_to_mysql()
+    
     csv_reader = csv.DictReader(ifs.getvalue().split('\n'))
     ifs.close()
     prious_date = 0
@@ -164,23 +169,31 @@ def anslyser(plainTex: str):
         prious_date = current_date
 
         sql_statement = 'INSERT INTO tblIPOStock(股票代码,申购代码,股票简称,申购上限,发行价格,首日收盘价,申购日期,中签号公布日,中签缴款日期,上市日期,发行市盈率,行业市盈率,中签率) \
-            VALUES ("%s","%s","%s",%.2f,%.3f,%.3f,"%s","%s","%s","%s",%f,%.2f,%f);'\
+            VALUES ("%s","%s","%s",%.2f,%.3f,%.3f,%s,%s,%s,%s,%f,%.2f,%f);'\
                                 %(dict_row['股票代码'],\
                                 dict_row['申购代码'],\
                                 dict_row['股票简称'],\
                                 fmtDouble(dict_row['申购上限(万股)']),\
                                 fmtDouble(dict_row['发行价格']),\
                                 fmtDouble(dict_row['首日收盘价']),\
-                                fmtDate(dict_row['申购日期'], based_year_str),\
-                                fmtDate(dict_row['中签号公布日'], based_year_str),\
-                                fmtDate(dict_row['中签缴款日期'], based_year_str),\
-                                fmtDate(dict_row['上市日期'], based_year_str),\
+                                fmtWithQuote(fmtDate(dict_row['申购日期'], based_year_str)),\
+                                fmtWithQuote(fmtDate(dict_row['中签号公布日'], based_year_str)),\
+                                fmtWithQuote(fmtDate(dict_row['中签缴款日期'], based_year_str)),\
+                                fmtWithQuote(fmtDate(dict_row['上市日期'], based_year_str)),\
                                 fmtDouble(dict_row['发行市盈率']),\
                                 fmtDouble(dict_row['行业市盈率']),\
                                 fmtDouble(dict_row['中签率(%)']))
         print(sql_statement)
 
+    try:
+        cursor.execute(sql_statement)
+        conn.commit()
+    except Exception as e:
+        # 插入数据失败时, 回滚事务
+        conn.rollback()
 
+    cursor.close()
+    conn.close()
 
 if __name__ == '__main__':
     coll = Resultcoll()
