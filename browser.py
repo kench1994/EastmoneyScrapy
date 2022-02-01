@@ -5,7 +5,7 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QUrl
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import QApplication
-from sqlalchemy import Column, String, Date, Float, create_engine, null
+from sqlalchemy import Column, String, Date, Float, create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -17,8 +17,63 @@ engine = create_engine('mysql+pymysql://root:kench@172.21.82.234:3306/Finance?ch
 # 创建DBSession类型
 DBSession = sessionmaker(bind = engine)
 
+
+#TODO: put int utils
+def fmtDouble(val) -> float:
+    if '-' == val:
+        return 0.0
+    return float(val)
+
+def fmtDate(val: str, based_year = ''):
+    if '-' == val:
+        return None
+    tmp = val
+    nPos = val.find(' ')
+    if -1 != nPos:
+        tmp = val[:nPos]
+    else:
+        nPos = -1
+        nPos = val.find('>>')
+        if -1 != nPos:
+            tmp = val[:nPos]
+    if based_year != '':
+        return based_year + '-' + tmp
+    return tmp
+
+def DateToInt(val):
+    d = fmtDate(val)
+    nPos = d.find('-')
+    if -1 != nPos:
+        tmp = d[ :nPos] + d[nPos + 1:]
+        return int(tmp)
+    return int(d)
+
+def isShiftToPriousYear(curr_val, prious_val):
+    if 0 == prious_val:
+        return False
+    if curr_val <= prious_val:
+        return False
+    return True
+
 # 创建对象的基类
 class IPOStock(declarative_base()):
+
+    def __init__(self, dict, based_year_str: str) -> None:
+        super().__init__()
+        self.股票代码 = dict['股票代码']
+        self.申购代码 = dict['申购代码']
+        self.股票简称 = dict['股票简称']
+        self.申购上限 = fmtDouble(dict['申购上限(万股)'])
+        self.发行价格 = fmtDouble(dict['发行价格'])
+        self.首日收盘价 = fmtDouble(dict['首日收盘价'])
+        self.申购日期 = fmtDate(dict['申购日期'], based_year_str)
+        self.中签号公布日 = fmtDate(dict['中签号公布日'], based_year_str)
+        self.中签缴款日期 = fmtDate(dict['中签缴款日期'], based_year_str)
+        self.上市日期 = fmtDate(dict['上市日期'], based_year_str)
+        self.发行市盈率 = fmtDouble(dict['发行市盈率'])
+        self.行业市盈率 = fmtDouble(dict['行业市盈率'])
+        self.中签率 = fmtDouble(dict['中签率(%)'])
+
     __tablename__ = 'tblIPOStock'
     股票代码 = Column(String(10), primary_key = True, nullable = False)
     申购代码 = Column(String(10), nullable = False)
@@ -108,42 +163,6 @@ def fetch_data(url: str, coll: Resultcoll):
     the_browser.load(QUrl(url), coll.Getter)
     APP.exec()
 
-#TODO: put int utils
-def fmtDouble(val) -> float:
-    if '-' == val:
-        return 0.0
-    return float(val)
-
-def fmtDate(val: str, based_year = ''):
-    if '-' == val:
-        return None
-    tmp = val
-    nPos = val.find(' ')
-    if -1 != nPos:
-        tmp = val[:nPos]
-    else:
-        nPos = -1
-        nPos = val.find('>>')
-        if -1 != nPos:
-            tmp = val[:nPos]
-    if based_year != '':
-        return based_year + '-' + tmp
-    return tmp
-
-def DateToInt(val):
-    d = fmtDate(val)
-    nPos = d.find('-')
-    if -1 != nPos:
-        tmp = d[ :nPos] + d[nPos + 1:]
-        return int(tmp)
-    return int(d)
-
-def isShiftToPriousYear(curr_val, prious_val):
-    if 0 == prious_val:
-        return False
-    if curr_val <= prious_val:
-        return False
-    return True
 
 def anslyser(plainTex: str):
     header = '股票代码,股票简称,相关资料,申购代码,发行总数(万股),网上发行(万股),顶格申购需配市值(万元),申购上限(万股),发行价格,最新价,首日收盘价,申购日期,中签号公布日,中签缴款日期,上市日期,发行市盈率,行业市盈率,中签率(%),询价累计报价,倍数,配售对象,报价家数,连续一字板数量,涨幅%,每中一签获利(元),招股说明书/意向书'
@@ -167,47 +186,19 @@ def anslyser(plainTex: str):
     prious_date = 0
     based_year_str = time.strftime('%Y')   
 
-    for dict_row in csv_reader:
+    for cv in csv_reader:
         try:
-            current_date = DateToInt(dict_row['申购日期'])
+            current_date = DateToInt(cv['申购日期'])
             if isShiftToPriousYear(current_date, prious_date):
                 based_year_str = str(DateToInt(based_year_str) - 1)
             prious_date = current_date
-            qryResult = session.query(IPOStock).filter(IPOStock.股票代码 == dict_row['股票代码'])
-            ipo_stock = qryResult.first()
-            if not ipo_stock:
-                new_ipo = IPOStock( 股票代码 = dict_row['股票代码'],\
-                                    申购代码 = dict_row['申购代码'],\
-                                    股票简称 = dict_row['股票简称'],\
-                                    申购上限 = fmtDouble(dict_row['申购上限(万股)']),\
-                                    发行价格 = fmtDouble(dict_row['发行价格']),\
-                                    首日收盘价 = fmtDouble(dict_row['首日收盘价']),\
-                                    申购日期 = fmtDate(dict_row['申购日期'], based_year_str),\
-                                    中签号公布日 = fmtDate(dict_row['中签号公布日'], based_year_str),\
-                                    中签缴款日期 = fmtDate(dict_row['中签缴款日期'], based_year_str),\
-                                    上市日期 = fmtDate(dict_row['上市日期'], based_year_str),\
-                                    发行市盈率 = fmtDouble(dict_row['发行市盈率']),\
-                                    行业市盈率 = fmtDouble(dict_row['行业市盈率']),\
-                                    中签率 = fmtDouble(dict_row['中签率(%)']))
-                # 添加到session:
-                session.add(new_ipo)
+            qryResult = session.query(IPOStock).filter(IPOStock.股票代码 == cv['股票代码'])
+            exist_ipo_stock = qryResult.first()
+            if not exist_ipo_stock:
+                new_ipo_stock = IPOStock(cv, based_year_str)
+                session.add(new_ipo_stock)
             else:
-                ipo_stock.申购代码 = dict_row['申购代码']
-                ipo_stock.股票简称 = dict_row['股票简称']
-                ipo_stock.申购上限 = fmtDouble(dict_row['申购上限(万股)'])
-                ipo_stock.发行价格 = fmtDouble(dict_row['发行价格'])
-                ipo_stock.首日收盘价 = fmtDouble(dict_row['首日收盘价'])
-                if fmtDate(dict_row['申购日期'], based_year_str):
-                    ipo_stock.申购日期 = fmtDate(dict_row['申购日期'], based_year_str)
-                if fmtDate(dict_row['中签号公布日'], based_year_str):
-                    ipo_stock.中签号公布日 = fmtDate(dict_row['中签号公布日'], based_year_str)
-                if fmtDate(dict_row['中签缴款日期'], based_year_str):
-                    ipo_stock.中签缴款日期 = fmtDate(dict_row['中签缴款日期'], based_year_str)
-                if fmtDate(dict_row['上市日期'], based_year_str):
-                    ipo_stock.上市日期 = fmtDate(dict_row['上市日期'], based_year_str)
-                ipo_stock.发行市盈率 = fmtDouble(dict_row['发行市盈率'])
-                ipo_stock.行业市盈率 = fmtDouble(dict_row['行业市盈率'])
-                ipo_stock.中签率 = fmtDouble(dict_row['中签率(%)'])
+                exist_ipo_stock = IPOStock(cv, based_year_str)
         except Exception as e:
             print(e)
         session.commit()
