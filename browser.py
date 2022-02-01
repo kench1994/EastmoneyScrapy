@@ -1,5 +1,5 @@
 # _*_ coding: utf-8 _*_
-import locale, csv
+import locale, csv, pymysql, time
 from io import StringIO
 from PyQt5 import QtCore
 from PyQt5.QtCore import QUrl
@@ -7,9 +7,25 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import QApplication
 
 QtCore.qInstallMessageHandler(lambda *args: None)
-
 APP = None
 
+mysql_config = {'host':'172.21.82.234',
+          'port':3306,
+          'user':'root',
+          'passwd':'kench',
+          'charset':'utf8mb4'#,
+          #'local_infile':1
+          }
+
+def conn_to_mysql():
+    #mysql连接方法
+    #MySQLdb.connect()
+    #postgl连接
+    conn = pymysql.connect(**mysql_config)
+    cur = conn.cursor()
+    cur.execute("set names utf8;")
+    cur.execute("SET character_set_connection=utf8;")
+    return cur          
 
 class MobileBrowser(QWebEngineView):
     def __init__(self):
@@ -83,13 +99,48 @@ def fetch_data(url: str, coll: Resultcoll):
     the_browser.load(QUrl(url), coll.Getter)
     APP.exec()
 
+#TODO: put int utils
+def fmtDouble(val) -> float:
+    if '-' == val:
+        return 0.0
+    return float(val)
+
+def fmtDate(val: str, based_year = '') -> str:
+    if '-' == val:
+        return ''
+    tmp = val
+    nPos = val.find(' ')
+    if -1 != nPos:
+        tmp = val[:nPos]
+    else:
+        nPos = -1
+        nPos = val.find('>>')
+        if -1 != nPos:
+            tmp = val[:nPos]
+    if based_year != '':
+        return based_year + '-' + tmp
+    return tmp
+
+def DateToInt(val):
+    d = fmtDate(val)
+    nPos = d.find('-')
+    if -1 != nPos:
+        tmp = d[ :nPos] + d[nPos + 1:]
+        return int(tmp)
+    return int(d)
+
+def isShiftToPriousYear(curr_val, prious_val):
+    if 0 == prious_val:
+        return False
+    if curr_val <= prious_val:
+        return False
+    return True
+
 def anslyser(plainTex: str):
-    header = '股票代码,股票简称,相关资料,申购代码,发行总数(万股),网上发行(万股),顶格申购需配市值(万元),申购上限(万股),发行价格,最新价,首日收盘价,申购日期 ,中签号公布日,中签缴款日期,上市日期,发行市盈率,行业市盈率,中签率(%),询价累计报价,倍数,配售对象,报价家数,连续一字板数量,涨幅%,每中一签获利(元),招股说明书/意向书'
-    
+    header = '股票代码,股票简称,相关资料,申购代码,发行总数(万股),网上发行(万股),顶格申购需配市值(万元),申购上限(万股),发行价格,最新价,首日收盘价,申购日期,中签号公布日,中签缴款日期,上市日期,发行市盈率,行业市盈率,中签率(%),询价累计报价,倍数,配售对象,报价家数,连续一字板数量,涨幅%,每中一签获利(元),招股说明书/意向书'
     ifs = StringIO()
     csv_writer = csv.writer(ifs)
     csv_writer.writerow(header.split(','))
-    
     
     rows = plainTex.split("\n")
     for row in rows:
@@ -98,12 +149,37 @@ def anslyser(plainTex: str):
         elif 0 < row.find('下一页'):
             break
         csv_writer.writerow(row.split("\t"))
-    
-    csv_reader = csv.DictReader(ifs.getvalue().split('\n'))
-    for dict_row in csv_reader:
-       print(dict_row['股票代码'])
 
+    #cur = conn_to_mysql()
+    #cur.
+    csv_reader = csv.DictReader(ifs.getvalue().split('\n'))
     ifs.close()
+    prious_date = 0
+    based_year_str = time.strftime('%Y')   
+
+    for dict_row in csv_reader:
+        current_date = DateToInt(dict_row['申购日期'])
+        if isShiftToPriousYear(current_date, prious_date):
+            based_year_str = str(DateToInt(based_year_str) - 1)
+        prious_date = current_date
+
+        sql_statement = 'INSERT INTO tblIPOStock(股票代码,申购代码,股票简称,申购上限,发行价格,首日收盘价,申购日期,中签号公布日,中签缴款日期,上市日期,发行市盈率,行业市盈率,中签率) \
+            VALUES ("%s","%s","%s",%.2f,%.3f,%.3f,"%s","%s","%s","%s",%f,%.2f,%f);'\
+                                %(dict_row['股票代码'],\
+                                dict_row['申购代码'],\
+                                dict_row['股票简称'],\
+                                fmtDouble(dict_row['申购上限(万股)']),\
+                                fmtDouble(dict_row['发行价格']),\
+                                fmtDouble(dict_row['首日收盘价']),\
+                                fmtDate(dict_row['申购日期'], based_year_str),\
+                                fmtDate(dict_row['中签号公布日'], based_year_str),\
+                                fmtDate(dict_row['中签缴款日期'], based_year_str),\
+                                fmtDate(dict_row['上市日期'], based_year_str),\
+                                fmtDouble(dict_row['发行市盈率']),\
+                                fmtDouble(dict_row['行业市盈率']),\
+                                fmtDouble(dict_row['中签率(%)']))
+        print(sql_statement)
+
 
 
 if __name__ == '__main__':
