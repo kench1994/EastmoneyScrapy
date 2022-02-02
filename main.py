@@ -1,5 +1,4 @@
 # _*_ coding: utf-8 _*_
-from gc import collect
 import locale, csv, time
 import utils
 from model import IPOStock
