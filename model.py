@@ -35,3 +35,32 @@ class IPOStock(declarative_base()):
     发行市盈率 = Column(Float(10, 2))
     行业市盈率 = Column(Float(10, 2))
     中签率 = Column(Float(10, 6))
+
+class IPOCvtBond(declarative_base()):
+
+    def __init__(self, dict, based_year_str: str) -> None:
+        super().__init__()
+        self.债券代码 = dict['债券代码']
+        self.债券简称 = dict['债券简称']
+        self.申购日期 = utils.fmtDate(dict['申购日期'])
+        self.申购代码 = dict['申购代码']
+        self.申购上限 = utils.fmtDouble(dict['申购上限(万元)'])
+        self.股权登记日 = utils.fmtDate(dict['股权登记日'], based_year_str)
+        self.每股配售额 = utils.fmtDouble(dict['每股配售额'])
+        self.发行规模 = utils.fmtDouble(dict['发行规模(亿元)'])
+        self.中签号发布日 = utils.fmtDate(dict['中签号发布日'], based_year_str)
+        self.中签率 = utils.fmtDouble(dict['中签率(%)'])
+        self.上市时间 = utils.fmtDate(dict['上市时间'], based_year_str)
+
+    __tablename__ = 'tblCvtBond'
+    债券代码 = Column(String(10), primary_key = True, nullable = False)
+    债券简称 = Column(String(10))
+    申购日期 = Column(Date, nullable = True)
+    申购代码 = Column(String(10), nullable = False)
+    申购上限 = Column(Float(10, 2))
+    股权登记日 = Column(Date, nullable = True)
+    每股配售额 = Column(Float(10, 4))
+    发行规模 = Column(Float(10, 2))
+    中签号发布日 = Column(Date, nullable = True)
+    中签率 = Column(Float(10, 4))
+    上市时间 = Column(Date, nullable = True)
