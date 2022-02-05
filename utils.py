@@ -22,16 +22,20 @@ def fmtDate(val: str, based_year = ''):
     return tmp
 
 def DateToInt(val) -> int:
-    d = fmtDate(val)
-    nPos = d.find('-')
-    if -1 != nPos:
-        tmp = d[ :nPos] + d[nPos + 1:]
-        return int(tmp)
-    return int(d)
+    s = ''
+    s = fmtDate(val)
+    return int(s.replace('-', ''))
 
 def isShiftToPriousYear(curr_val, prious_val):
     if 0 == prious_val:
         return False
-    if curr_val <= prious_val:
+    #20220202
+    #如果是YYMMDD
+    if curr_val / 10000000:
+        d_c = int(curr_val / 10000)
+        d_p = int(prious_val / 10000)
+        if d_c >= d_p:
+            return False
+    elif curr_val <= prious_val:
         return False
     return True
