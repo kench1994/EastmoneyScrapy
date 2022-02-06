@@ -13,7 +13,7 @@ QtCore.qInstallMessageHandler(lambda *args: None)
 APP = None
 
 # 初始化数据库连接
-engine = create_engine('mysql+pymysql://root:kench@172.29.130.85:3306/Finance?charset=utf8')
+engine = create_engine('mysql+pymysql://root:kench@docker.for.win.localhost/Finance?charset=utf8')
 # 创建DBSession类型
 DBSession = sessionmaker(bind = engine)
 
